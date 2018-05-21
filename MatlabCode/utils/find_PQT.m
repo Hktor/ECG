@@ -16,7 +16,7 @@
 %           Twave location                         - tlcs
 
 %% Load ECG Raw Data File
-function [plcs,rlcs,tlcs] = find_PQT(dt,fs,tm)
+function [plcs,rlcs,tlcs] = find_PQT(dt,fs,tm, PATH_ROOT)
 fprintf('LowBandPass Filtering...\n');
 
 sz = size(dt,1);
@@ -127,7 +127,7 @@ end
 
 %% Plot Result
 
-figure();
+fig1 = figure('units','normalized','outerposition',[0 0 0.8 0.5]);
 plot(tm,dt,'LineWidth',2);
 hold on
 scatter(plcs,pwv,'filled');
@@ -137,5 +137,14 @@ hold on
 scatter(tlcs,twv,'filled');
 grid on; grid minor;
 legend('ECG','Pwv','QRS','Twv');
+xlabel('Time[s]');
+ylabel('Amplitude[mV]');
+title('Pwave, QRScomplex, Twave');
+
+outFilename = '/Results_PRT.fig'; 
+figname = [PATH_ROOT outFilename];
+saveas(fig1,figname,'fig');
+
+fprintf(sprintf('Results stored in: %s\n', figname));
 
 end

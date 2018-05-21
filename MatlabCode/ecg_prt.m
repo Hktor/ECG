@@ -30,7 +30,7 @@
 
 % Initialize
 close all; clear all; clc;
-IN_PATH = './Processed/'; % Default path for input files
+IN_PATH = './data/Processed/'; % Default path for input files
 addpath('./utils');
 
 % Load ECG Raw Data File
@@ -40,14 +40,17 @@ load(inFile);
 
 fname = ecg.info.patient;
 fdate = ecg.info.date;
-fdate(fdate=='/') = [];
-fdura = ecg.info.duration;
+fdate(fdate=='/') = '_';
+dura = ecg.info.duration;
+fdura = [num2str(dura) '_s'];
 
 fprintf(sprintf('File Loaded: %s\n', fnm));
 
 % Create Output Directory
 
-PATH_ROOT = sprintf('./Results/%s/%s/%s',fname,fdate,fdura);
+d = datetime('today');
+
+PATH_ROOT = sprintf('./Results/%s/%s/%s/%s',d,fname,fdate,fdura);
 status = exist(PATH_ROOT,'dir');
 if  status > 0
     % **************** Clean Data if results already exits ****************
@@ -77,23 +80,30 @@ dwFactor = 4;
 dwfs = fs/dwFactor;
 
 % Outputs: Frequency Filter, Features Filter
-p_data = zeros(nOfE,nOfE);
-q_data = zeros(nOfE,nOfE);
-t_data = zeros(nOfE,nOfE);
+p_data = zeros(nOfE,1);
+q_data = zeros(nOfE,1);
+t_data = zeros(nOfE,1);
 
-for ch=1:nOfE
+% Each Signal must be Analyzed in a different way
+
+%% Lead I
+
+  
+% LOAD DATA
     
-    % LOAD DATA
+ dt = data(:,1);
     
-    dt = data(:,ch);
-    
-    % Find Pwave, QRS-complex, Twave
+% Find Pwave, QRS-complex, Twave
        
-    [plcs,qlcs,tlcs] = find_PQT(dt,fs,tm);
+[plcs,qlcs,tlcs] = find_PQT(dt,fs,tm, PATH_ROOT);
     
-    % Store Individual Channel into Array
-    p_data(1:size(plcs),ch) = plcs;
-    q_data(1:size(qlcs),ch) = qlcs;
-    t_data(1:size(tlcs),ch) = tlcs;
+% Store Individual Channel into Array
+p_data(1:size(plcs),1) = plcs;
+q_data(1:size(qlcs),1) = qlcs;
+t_data(1:size(tlcs),1) = tlcs;
+
+
+
+
+
     
-end
