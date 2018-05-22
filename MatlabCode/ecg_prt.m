@@ -67,7 +67,7 @@ tm     = ecg.data.tm;
 tm     = tm';
 data    = ecg.data.val;
 data    = data';
-nOfE    = ecg.info.nOfE;
+nOfS    = ecg.info.nOfS;
 periodStart = ceil(tm(1)); % Initial Time
 periodFinal = ceil(tm(end)); % Final time
 tmPeriod  = periodStart:1:periodFinal-1;
@@ -79,15 +79,9 @@ fs = ecg.config.fs;
 dwFactor = 4;
 dwfs = fs/dwFactor;
 
-% Outputs: Frequency Filter, Features Filter
-p_data = zeros(nOfE,1);
-q_data = zeros(nOfE,1);
-t_data = zeros(nOfE,1);
-
 % Each Signal must be Analyzed in a different way
 
 %% Lead I
-
   
 % LOAD DATA
     
@@ -95,14 +89,12 @@ t_data = zeros(nOfE,1);
     
 % Find Pwave, QRS-complex, Twave
        
-[plcs,qlcs,tlcs] = find_PQT(dt,fs,tm, PATH_ROOT);
-    
-% Store Individual Channel into Array
-p_data(1:size(plcs),1) = plcs;
-q_data(1:size(qlcs),1) = qlcs;
-t_data(1:size(tlcs),1) = tlcs;
+[dx_dt,hr_dt] = find_PQT(dt,fs,tm, PATH_ROOT);
 
-
+% Outputs: Frequency Filter, Features Filter
+p_data = zeros(nOfS,1);
+q_data = zeros(nOfS,1);
+t_data = zeros(nOfS,1);
 
 
 

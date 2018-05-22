@@ -16,130 +16,133 @@
 %           Twave location                         - tlcs
 
 %% Load ECG Raw Data File
-function [plcs,rlcs,tlcs] = find_PQT(dt,fs,tm, PATH_ROOT)
+function [dx_dt,hr_dt] = find_PQT(dt,fs,tm, PATH_ROOT)
 fprintf('LowBandPass Filtering...\n');
 
-sz = size(dt,1);
+sz = size(dt,1);        % Size of the data vector
 
-% Average data in 100 milliseconds - filtering
+%% Average data in 100 milliseconds - filtering
 
-fi = 5;
-p = 1/(fi*2);
-t = 0:1/fs:p;
-t = t(1:end-1);
-h = sin(2*pi*fi*t);
-ftsz = size(h,2);
-dly = round(ftsz/4);
-av_dt = conv(dt,h);
+fi = 12.5;              % Frequency 5 Hz = avg 80ms
+p = 1/(fi*2);           % Period length
+t = 0:1/fs:p;           % Time vector for filter
+t = t(1:end-1);         % Remove last component to adjust time vector
+h = sin(2*pi*fi*t);     % Create sine wave - filter
+ftsz = size(h,2);       % Size of the filter
+dly = round(ftsz/2);    % Calculate delay of the filter
+avg_dt = conv(dt,h);    % Find correlation filter and data
 
-avg_dt = zeros(sz,1);
-avg_dt((1:end-dly)) = av_dt(dly+1:sz);
+av_dt = zeros(sz,1);   % Create a new data vector
+av_dt((1:end-dly)) = avg_dt(dly+1:sz); % Correct the output delay
 
-% Extract P-wave, QRS-complex, T-wave - filtering
+av_dt = (av_dt-min(av_dt))/(max(av_dt)-min(av_dt)); % Normalize vector
 
-fi = 20;
-p = 1/fi;
-t = 0:1/fs:p;
-t = t(1:end-1);
-h = sin(2*pi*fi*t);
-ftsz = size(h,2);
-dly = round(ftsz/4);
-sn_dt = conv(avg_dt,h);
+%% Extract waves - Pwave, QRScomplex, Twave
 
-sin_dt = zeros(sz,1);
-sin_dt((1:end-dly)) = sn_dt(dly+1:sz);
+fi = 6.5;               % Frequency 3 Hz = avg 167ms
+p = 1/fi;               % Period length
+t = 0:1/fs:p;           % Time vector for filter
+t = t(1:end-1);         % Remove last component to adjust time vector
+h = sin(2*pi*fi*t);     % Create sine wave - filter
+ftsz = size(h,2);       % Size of the filter
+dly = round(ftsz/2);    % Calculate delay of the filter
+sn_dt = conv(av_dt,h); % Find correlation filter and data
 
-sin_dt = sin_dt/max(sin_dt);
-sin_dt(sin_dt<0) = 0;
+wv_dt = zeros(sz,1);    % Create a new data vector
+wv_dt((1:end-dly)) = -sn_dt(dly+1:sz); % Correct the output delay
 
-% Find P-wave and T-wave
+wv_dt = (wv_dt-min(wv_dt))/(max(wv_dt)-min(wv_dt)); % Normalize vector
 
-fi = 1;
-p = 1/(fi*2);
-t = 0:1/fs:p;
-t = t(1:end-1);
-h = sin(2*pi*fi*t);
-ftsz = size(h,2);
-dly = round(ftsz/4);
-hr_dt = conv(sin_dt,h);
+%% Apply derivative filter to get tangent slope
 
-car_dt = zeros(sz,1);
-car_dt((1:end-dly)) = hr_dt(dly+1:sz);
+dx = [1;-1];            % First order Derivative Filter
 
-car_dt = car_dt/max(car_dt);
+dx_dt = conv(wv_dt,dx,'same'); % Apply filter
+dx_dt(dx_dt<0) = 0;    % Set negative values to -1
 
-[~,tlcs,~] = findpeaks(car_dt,tm);
-[~,plcs,~] = findpeaks(-car_dt,tm);
+dx_dt = dx_dt/max(dx_dt);
 
-% Find P-wave, QRS-complex and T-wave
+%% Transform waves into Rectangular form
 
-fi = 3;
-p = 1/(fi*2);
-t = 0:1/fs:p;
-t = t(1:end-1);
-h = sin(2*pi*fi*t);
-ftsz = size(h,2);
-dly = round(ftsz/4);
-hr_dt = conv(dt,h);
+maxVal = 0;
+wvFlag = false;
+idx1 = 0;
 
-car_dt = zeros(sz,1);
-car_dt((1:end-dly)) = hr_dt(dly+1:sz);
-
-car_dt = car_dt/max(car_dt);
-
-[~,lcs,~] = findpeaks(car_dt,tm);
-
-% Eliminate incomplete detections
-
-tlcs = tlcs(tlcs>plcs(1));
-
-lcs = lcs(lcs>plcs(1));
-lcs = lcs(lcs<tlcs(end));
-
-plcs = plcs(plcs<tlcs(end));
-
-% Number of full activations detected
-
-nOfact = size(plcs,1);
-
-% Remove duplicated peaks
-
-for i=1:nOfact
-    lcs(lcs>tlcs(i)-0.05 & lcs<tlcs(i)+0.05) = [];
-    lcs(lcs>plcs(i)-0.05 & lcs<plcs(i)+0.05) = [];
+for i=1:size(dx_dt,1)
+    if dx_dt(i) > 0 && ~wvFlag
+        idx1 = i;
+        maxVal = dx_dt(i);
+        wvFlag = true;
+    elseif dx_dt(i) > 0 && dx_dt(i) > maxVal && wvFlag 
+        maxVal = dx_dt(i);
+    elseif dx_dt(i) == 0 && wvFlag
+        idx2 = i-1;
+        dx_dt(idx1:idx2) = maxVal;
+        maxVal = 0;
+        wvFlag = false;
+    end
 end
+%% Extract Cardiac Rhythm with peaks at representative waves
 
-% Build triplets
+fi = 1;                 % Frequency 3 Hz = avg 167ms
+p = 1/fi;               % Period length
+t = 0:1/fs:p;           % Time vector for filter
+t = t(1:end-1);         % Remove last component to adjust time vector
+h = sin(2*pi*fi*t);     % Create sine wave - filter
+ftsz = size(h,2);       % Size of the filter
+dly = round(ftsz/2);    % Calculate delay of the filter
+krdio1_dt = conv(dx_dt,h);   % Find correlation filter and data
+dly = dly*2;
+krdio2_dt = conv(krdio1_dt,h);
 
-rlcs = zeros(nOfact,1);
-twv  = zeros(nOfact,1);
-pwv  = zeros(nOfact,1);
-qrs  = zeros(nOfact,1);
+hr_dt = zeros(sz,1);    % Create a new data vector
+hr_dt((1:end-dly)) = -krdio2_dt(dly+1:sz); % Correct the output delay
 
-for i=1:nOfact
-    rlcs(i) = lcs(lcs>plcs(i) & lcs<tlcs(i));
+hr_dt = (hr_dt-min(hr_dt))/(max(hr_dt)-min(hr_dt)); % Normalize vector
+
+%% Up to this point verify solution
+
+
+dt = (dt-min(dt))/(max(dt)-min(dt));
     
-    twv(i) = dt(tm==tlcs(i));
-    pwv(i) = dt(tm==plcs(i));
-    qrs(i) = dt(tm==rlcs(i));
+fig1 = figure('units','normalized','outerposition',[0 0 1 1]);
     
-end
-
-%% Plot Result
-
-fig1 = figure('units','normalized','outerposition',[0 0 0.8 0.5]);
-plot(tm,dt,'LineWidth',2);
-hold on
-scatter(plcs,pwv,'filled');
-hold on
-scatter(rlcs,qrs,'filled');
-hold on
-scatter(tlcs,twv,'filled');
+ax1 = subplot(5,1,1);
+plot(tm,dt,'k','LineWidth',1.5);
+legend('Raw Data');
 grid on; grid minor;
-legend('ECG','Pwv','QRS','Twv');
-xlabel('Time[s]');
-ylabel('Amplitude[mV]');
-title('Pwave, QRScomplex, Twave');
+    
+ax2 = subplot(5,1,2);
+plot(tm,av_dt,'c','LineWidth',1.5);
+legend('Avg Data');
+grid on; grid minor;
+    
+ax3 = subplot(5,1,3);
+plot(tm,wv_dt,'b','LineWidth',1.5);
+legend('Wave Data');
+grid on; grid minor;
+
+ax4 = subplot(5,1,4);
+plot(tm,dx_dt,'r','LineWidth',1.5);
+legend('Diff Data');
+grid on; grid minor;
+    
+ax5 = subplot(5,1,5);
+plot(tm,dx_dt,'r','LineWidth',1.5);
+hold on
+plot(tm,hr_dt,'m','LineWidth',1.5);
+legend(['Diff Data';'Krdc Data']);
+grid on; grid minor;
+    
+linkaxes([ax1,ax2,ax3,ax4,ax5],'x');
+xlim([tm(1)+1 round(tm(end))-1]);
+
+% %% Downsampling to create envelope
+% dwsmp_dt = wv_dt(1:50:end);
+% dwsmp_tm = tm(1:50:end);
+% 
+% %% Find Peaks In the Averaged Signal
+% [pks,lcs,~] = findpeaks(av_dt,tm);
 
 outFilename = '/Results_PRT.fig'; 
 figname = [PATH_ROOT outFilename];

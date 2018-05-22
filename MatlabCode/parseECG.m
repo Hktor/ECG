@@ -101,4 +101,7 @@ ecg.data.tm = tm(1:end-1);
 
 outFilename = strcat(OUT_PATH, ptID, '.mat'); 
 save(outFilename, 'ecg','ecg');
+
+fprintf(sprintf('Record successfully stored: %s\n', outFilename));
+
           
