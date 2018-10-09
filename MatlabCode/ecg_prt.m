@@ -91,11 +91,8 @@ dwfs = fs/dwFactor;
        
 [dx_dt,hr_dt] = find_PQT(dt,fs,tm, PATH_ROOT);
 
-% Outputs: Frequency Filter, Features Filter
-p_data = zeros(nOfS,1);
-q_data = zeros(nOfS,1);
-t_data = zeros(nOfS,1);
+outFilename = '/KardioActivation.mat'; 
+filename = [PATH_ROOT outFilename];
+save(filename,'dt','tm','fs','dx_dt','hr_dt');
 
-
-
-    
+fprintf(sprintf('Results stored in: %s\n', filename));
